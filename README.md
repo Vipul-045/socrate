@@ -1,1 +1,1 @@
-An autonomous learning platform that plans, teaches, tests, and adapts, so you don’t just study, you actually learn.
+**An autonomous learning platform that plans, teaches, tests, and adapts, so you don’t just study, you actually learn.**
