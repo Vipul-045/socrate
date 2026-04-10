@@ -1,9 +1,11 @@
 fastapi
 uvicorn
-psycopg2-binary
-pgvector
 python-dotenv
-pymupdf
+requests
+pymupdf                # .pdf
+python-docx            # .docx
+openpyxl               # .xlsx
+python-pptx            # .pptx
+striprtf               # .rtf
 openai
-python-multipart
-sqlalchemy
+qdrant-client
