@@ -6,9 +6,12 @@ from qdrant_client.models import (
     Distance, VectorParams, PointStruct
 )
 import uuid
-from config import QDRANT_URL, QDRANT_COLLECTION
+from config import QDRANT_URL, QDRANT_COLLECTION, QDRANT_API_KEY
 
-client = QdrantClient(url=QDRANT_URL)
+client = QdrantClient(
+    url=QDRANT_URL,
+    api_key=QDRANT_API_KEY
+)
 
 def ensure_collection():
     # Create the collection only if it doesn't exist yet
