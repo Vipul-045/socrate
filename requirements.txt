@@ -9,3 +9,4 @@ python-pptx            # .pptx
 striprtf               # .rtf
 openai
 qdrant-client
+sentence-transformers
