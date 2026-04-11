@@ -1,19 +1,11 @@
-# Converts each text chunk into a vector (list of floats)
-# We use the SAME model at ingest time AND query time — this is critical
+# No API key needed — runs locally on your machine for free
 
-from openai import OpenAI
-from config import OPENAI_API_KEY, EMBEDDING_MODEL
+from sentence_transformers import SentenceTransformer
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+model = SentenceTransformer("all-MiniLM-L6-v2")  # downloads once, ~80MB
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
-    # OpenAI can embed multiple texts in one API call (batched)
-    response = client.embeddings.create(
-        model=EMBEDDING_MODEL,
-        input=texts
-    )
-    # Extract the vector for each text, in order
-    return [item.embedding for item in response.data]
+    return model.encode(texts).tolist()
 
 def embed_single(text: str) -> list[float]:
-    return embed_texts([text])[0]
+    return model.encode([text])[0].tolist()
