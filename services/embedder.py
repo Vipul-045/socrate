@@ -1,11 +1,14 @@
-# No API key needed — runs locally on your machine for free
+from openai import OpenAI
+from config import OPENAI_API_KEY, EMBEDDING_MODEL
 
-from sentence_transformers import SentenceTransformer
-
-model = SentenceTransformer("all-MiniLM-L6-v2")  # downloads once, ~80MB
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
-    return model.encode(texts).tolist()
+    response = client.embeddings.create(
+        model=EMBEDDING_MODEL,
+        input=texts
+    )
+    return [item.embedding for item in response.data]
 
 def embed_single(text: str) -> list[float]:
-    return model.encode([text])[0].tolist()
+    return embed_texts([text])[0]

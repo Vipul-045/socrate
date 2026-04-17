@@ -2,11 +2,10 @@ fastapi
 uvicorn
 python-dotenv
 requests
-pymupdf                # .pdf
-python-docx            # .docx
-openpyxl               # .xlsx
-python-pptx            # .pptx
-striprtf               # .rtf
+pymupdf
 openai
 qdrant-client
-sentence-transformers
+python-docx
+openpyxl
+python-pptx
+striprtf
