@@ -42,12 +42,19 @@ def store_chunks(chunks: list[str], embeddings: list[list[float]], pdf_url: str)
 
     client.upsert(collection_name=QDRANT_COLLECTION, points=points)
 
-def search_similar(query_vector: list[float], top_k: int = 5) -> list[str]:
-    # Find the top_k most similar chunks to the query vector
+def search_similar(query_vector: list[float], file_url: str, top_k: int = 5) -> list[str]:
     results = client.query_points(
-    collection_name=QDRANT_COLLECTION,
-    query=query_vector,
-    limit=top_k
-).points
-    # Return just the text of each matching chunk
+        collection_name=QDRANT_COLLECTION,
+        query=query_vector,
+        limit=top_k,
+        query_filter={
+            "must": [
+                {
+                    "key": "file_url",
+                    "match": { "value": file_url }  # ← only search this file's chunks
+                }
+            ]
+        }
+    ).points
+
     return [hit.payload["text"] for hit in results]
