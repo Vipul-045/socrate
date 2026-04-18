@@ -3,10 +3,9 @@ uvicorn
 python-dotenv
 requests
 pymupdf
-openai
+cohere
 qdrant-client
 python-docx
 openpyxl
 python-pptx
 striprtf
-cohere
