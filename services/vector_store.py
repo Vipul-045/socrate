@@ -1,28 +1,28 @@
-# Handles both storing chunks and searching them later
-# Qdrant stores each chunk as a "point": vector + payload (metadata)
-
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
-    Distance, VectorParams, PointStruct
+    Distance, VectorParams, PointStruct,
+    PayloadSchemaType  # ← add this
 )
 import uuid
-from config import QDRANT_URL, QDRANT_COLLECTION, QDRANT_API_KEY
+from config import QDRANT_URL, QDRANT_API_KEY, QDRANT_COLLECTION
 
-client = QdrantClient(
-    url=QDRANT_URL,
-    api_key=QDRANT_API_KEY
-)
+client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 
 def ensure_collection():
-    # Create the collection only if it doesn't exist yet
     existing = [c.name for c in client.get_collections().collections]
     if QDRANT_COLLECTION not in existing:
         client.create_collection(
             collection_name=QDRANT_COLLECTION,
             vectors_config=VectorParams(
-                size=1024,           # dimension for text-embedding-3-small
+                size=1024,
                 distance=Distance.COSINE
             )
+        )
+        # ← create index on pdf_url so filtering works
+        client.create_payload_index(
+            collection_name=QDRANT_COLLECTION,
+            field_name="pdf_url",
+            field_schema=PayloadSchemaType.KEYWORD
         )
 
 def store_chunks(chunks: list[str], embeddings: list[list[float]], pdf_url: str):
@@ -50,11 +50,10 @@ def search_similar(query_vector: list[float], file_url: str, top_k: int = 5) -> 
         query_filter={
             "must": [
                 {
-                    "key": "file_url",
-                    "match": { "value": file_url }  # ← only search this file's chunks
+                    "key": "pdf_url",            # ← changed to pdf_url
+                    "match": { "value": file_url }
                 }
             ]
         }
     ).points
-
     return [hit.payload["text"] for hit in results]

@@ -7,18 +7,32 @@ from services.llm import ask_llm_stream
 
 router = APIRouter()
 
-class QueryRequest(BaseModel):
+class SearchRequest(BaseModel):
     query: str
-    file_url: str 
+    pdf_url: str
 
-@router.post("/query")
-def query_pdf(req: QueryRequest):
+class StreamRequest(BaseModel):
+    query: str
+    chunks: list[str]  # chunks returned from /query/search
+
+
+# ── Endpoint 1: Semantic search only ──────────────────────────────
+@router.post("/query/search")
+def search(req: SearchRequest):
     try:
         query_vector   = embed_single(req.query)
-        context_chunks = search_similar(query_vector, req.file_url) 
+        context_chunks = search_similar(query_vector, req.pdf_url)
+        return { "chunks": context_chunks }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
+
+# ── Endpoint 2: LLM stream only ───────────────────────────────────
+@router.post("/query/stream")
+def stream(req: StreamRequest):
+    try:
         return StreamingResponse(
-            ask_llm_stream(req.query, context_chunks),
+            ask_llm_stream(req.query, req.chunks),
             media_type="text/plain"
         )
     except Exception as e:

@@ -5,13 +5,13 @@ import requests
 import tempfile
 import os
 
-def download_and_parse(file_url: str) -> str:
+def download_and_parse(pdf_url: str) -> str:
     # 1. Download the file
-    response = requests.get(file_url)
+    response = requests.get(pdf_url)
     response.raise_for_status()
 
     # 2. Detect extension from the URL
-    ext = os.path.splitext(file_url.split("?")[0])[-1].lower()
+    ext = os.path.splitext(pdf_url.split("?")[0])[-1].lower()
 
     # 3. Save to temp file
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as f:

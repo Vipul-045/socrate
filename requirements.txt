@@ -4,6 +4,7 @@ python-dotenv
 requests
 pymupdf
 cohere
+groq
 qdrant-client
 python-docx
 openpyxl

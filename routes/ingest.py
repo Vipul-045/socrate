@@ -8,15 +8,15 @@ from services.vector_store import store_chunks
 router = APIRouter()
 
 class IngestRequest(BaseModel):
-    file_url: str   # ← renamed from pdf_url (Node.js sends any file URL now)
+    pdf_url: str   # ← renamed from pdf_url (Node.js sends any file URL now)
 
 @router.post("/process")
 def process_file(req: IngestRequest):
     try:
-        text       = download_and_parse(req.file_url)
+        text       = download_and_parse(req.pdf_url)
         chunks     = chunk_text(text)
         embeddings = embed_texts(chunks)
-        store_chunks(chunks, embeddings, req.file_url)
+        store_chunks(chunks, embeddings, req.pdf_url)
         return {"status": "ok", "chunks_stored": len(chunks)}
     except ValueError as e:
         raise HTTPException(status_code=415, detail=str(e))  # 415 = Unsupported Media Type
