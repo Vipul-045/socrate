@@ -20,7 +20,7 @@ def ensure_collection():
         client.create_collection(
             collection_name=QDRANT_COLLECTION,
             vectors_config=VectorParams(
-                size=1536,           # dimension for text-embedding-3-small
+                size=1024,           # dimension for text-embedding-3-small
                 distance=Distance.COSINE
             )
         )

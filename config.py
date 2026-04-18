@@ -6,10 +6,11 @@ import os
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+COHERE_API_KEY    = os.getenv("COHERE_API_KEY")
 QDRANT_URL     = os.getenv("QDRANT_URL", "http://localhost:6333")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 QDRANT_COLLECTION = "socrate_docs"
-EMBEDDING_MODEL   = "text-embedding-3-small"
+EMBEDDING_MODEL = "embed-english-v3.0"
 LLM_MODEL         = "gpt-4o"
 CHUNK_SIZE        = 500   # characters per chunk
 CHUNK_OVERLAP     = 50
