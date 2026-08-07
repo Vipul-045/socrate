@@ -15,3 +15,5 @@ EMBEDDING_MODEL = "embed-english-v3.0"
 LLM_MODEL = "llama-3.3-70b-versatile" 
 CHUNK_SIZE        = 500   # characters per chunk
 CHUNK_OVERLAP     = 50
+TOPIC_AI_MODEL = os.getenv("COHERE_API_KEY")
+TOPIC_AI_MAX_CHARS = 10000

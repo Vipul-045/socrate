@@ -17,3 +17,18 @@ def chunk_text(text: str) -> list[str]:
         start += CHUNK_SIZE - CHUNK_OVERLAP  # slide with overlap
 
     return chunks
+    
+def chunk_text_with_offsets(text: str) -> list[tuple[str, int]]:
+    """Same sliding-window logic as chunk_text, but also returns each chunk's
+    character offset in the original text, needed to map chunks -> topics."""
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + CHUNK_SIZE
+        raw = text[start:end]
+        stripped = raw.strip()
+        if stripped:
+            leading_ws = len(raw) - len(raw.lstrip())
+            chunks.append((stripped, start + leading_ws))
+        start += CHUNK_SIZE - CHUNK_OVERLAP
+    return chunks

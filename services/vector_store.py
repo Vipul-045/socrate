@@ -6,7 +6,7 @@ from qdrant_client.models import (
 import uuid
 from config import QDRANT_URL, QDRANT_API_KEY, QDRANT_COLLECTION
 
-client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY, timeout=60)
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 
 def get_all_chunks(pdf_url: str) -> list[str]:
@@ -56,22 +56,11 @@ def ensure_collection():
             field_schema=PayloadSchemaType.KEYWORD
         )
 
-def store_chunks(chunks: list[str], embeddings: list[list[float]], pdf_url: str):
-    ensure_collection()
-
-    points = []
-    for i, (chunk, vector) in enumerate(zip(chunks, embeddings)):
-        points.append(PointStruct(
-            id=str(uuid.uuid4()),   # unique ID for each chunk
-            vector=vector,
-            payload={
-                "text": chunk,      # the actual text (returned at search time)
-                "pdf_url": pdf_url,
-                "chunk_index": i
-            }
-        ))
-
-    client.upsert(collection_name=QDRANT_COLLECTION, points=points)
+        client.create_payload_index(
+            collection_name=QDRANT_COLLECTION,
+            field_name="topic",
+            field_schema=PayloadSchemaType.KEYWORD
+        )
 
 def search_similar(query_vector: list[float], file_url: str, top_k: int = 5) -> list[str]:
     results = client.query_points(
@@ -88,3 +77,40 @@ def search_similar(query_vector: list[float], file_url: str, top_k: int = 5) -> 
         }
     ).points
     return [hit.payload["text"] for hit in results]
+
+
+def store_chunks(
+    chunks: list[str],
+    embeddings: list[list[float]],
+    pdf_url: str,
+    topics: list[str | None] | None = None,
+):
+    ensure_collection()
+
+    points = []
+
+    for i, (chunk, vector) in enumerate(zip(chunks, embeddings)):
+        payload = {
+            "text": chunk,
+            "pdf_url": pdf_url,
+            "chunk_index": i,
+        }
+
+        if topics and i < len(topics) and topics[i]:
+            payload["topic"] = topics[i]
+
+        points.append(
+            PointStruct(
+                id=str(uuid.uuid4()),
+                vector=vector,
+                payload=payload,
+            )
+        )
+
+    BATCH_SIZE = 100
+    for i in range(0, len(points), BATCH_SIZE):
+        batch = points[i:i + BATCH_SIZE]
+        client.upsert(
+            collection_name=QDRANT_COLLECTION,
+            points=batch,
+        )

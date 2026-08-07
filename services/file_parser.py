@@ -95,3 +95,36 @@ def _parse_rtf(path: str) -> str:
     from striprtf.striprtf import rtf_to_text
     with open(path, "r", errors="ignore") as f:
         return rtf_to_text(f.read())
+
+        # add these two functions, keep everything else (the parsers) unchanged
+
+def download_file(pdf_url: str) -> tuple[str, str]:
+    response = requests.get(pdf_url)
+    response.raise_for_status()
+    ext = os.path.splitext(pdf_url.split("?")[0])[-1].lower()
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as f:
+        f.write(response.content)
+        tmp_path = f.name
+    return tmp_path, ext
+
+
+_PARSERS = {
+    ".pdf": _parse_pdf, ".txt": _parse_txt, ".md": _parse_txt,
+    ".docx": _parse_docx, ".doc": _parse_docx,
+    ".xlsx": _parse_xlsx, ".xls": _parse_xlsx,
+    ".pptx": _parse_pptx, ".ppt": _parse_pptx,
+    ".rtf": _parse_rtf, ".csv": _parse_txt,
+}
+
+
+def parse_file(tmp_path: str, ext: str) -> str:
+    parser = _PARSERS.get(ext)
+    if not parser:
+        raise ValueError(f"Unsupported file type: {ext}")
+    return parser(tmp_path)
+
+
+def download_and_parse(pdf_url: str) -> str:
+    """Kept for backward compatibility with any other callers."""
+    tmp_path, ext = download_file(pdf_url)
+    return parse_file(tmp_path, ext)
