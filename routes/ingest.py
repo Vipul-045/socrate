@@ -31,7 +31,7 @@ def process_file(req: IngestRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/processnow")
+@router.post("/topic")
 def process_file(req: IngestRequest):
     try:
         tmp_path, ext = download_file(req.pdf_url)
