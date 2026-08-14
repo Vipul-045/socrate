@@ -57,6 +57,12 @@ def ensure_collection():
         )
 
         client.create_payload_index(
+    collection_name=QDRANT_COLLECTION,
+    field_name="image",
+    field_schema=PayloadSchemaType.KEYWORD
+)
+
+        client.create_payload_index(
             collection_name=QDRANT_COLLECTION,
             field_name="topic",
             field_schema=PayloadSchemaType.KEYWORD
@@ -84,6 +90,7 @@ def store_chunks(
     embeddings: list[list[float]],
     pdf_url: str,
     topics: list[str | None] | None = None,
+    metadata: dict | None = None,          # ← new
 ):
     ensure_collection()
 
@@ -98,6 +105,9 @@ def store_chunks(
 
         if topics and i < len(topics) and topics[i]:
             payload["topic"] = topics[i]
+
+        if metadata:                        # ← new — e.g. {"file_type": "image", "page": 1}
+            payload.update(metadata)
 
         points.append(
             PointStruct(

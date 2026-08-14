@@ -5,6 +5,69 @@ import requests
 import tempfile
 import os
 
+# add near the top with your other imports
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".heic"}
+
+_IMAGE_MIME_MAP = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".heic": "image/heic",
+}
+
+_IMAGE_PROMPT = """Extract ALL content from this image and return it as structured Markdown.
+
+- Preserve all visible text exactly as written.
+- Use markdown headings (#, ##, ###) for titles/section headers.
+- Reproduce any tables as markdown tables.
+- For charts, diagrams, or figures, add a short plain-text description under a
+  line that starts with "**Diagram description:**".
+- Reproduce any mathematical notation as LaTeX ($...$ inline, $$...$$ block).
+- Do not add commentary or wrap the output in code fences.
+- If the image has no meaningful content, return an empty string."""
+
+
+import time
+
+def _parse_image(path: str) -> str:
+    from google import genai
+    from google.genai import types
+    from google.genai.errors import ServerError
+    from config import GEMINI_API_KEY
+
+    if not GEMINI_API_KEY:
+        raise ValueError("GEMINI_API_KEY is not set — cannot parse image files")
+
+    client = genai.Client(api_key=GEMINI_API_KEY)
+
+    ext = os.path.splitext(path)[-1].lower()
+    mime_type = _IMAGE_MIME_MAP.get(ext, "image/png")
+
+    with open(path, "rb") as f:
+        image_bytes = f.read()
+
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[
+                    _IMAGE_PROMPT,
+                    types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                ],
+                config=types.GenerateContentConfig(temperature=0.1),
+            )
+            return (response.text or "").strip()
+        except ServerError as e:
+            if attempt == max_retries - 1:
+                raise ValueError(
+                    "Gemini is currently unavailable (high demand). Please try again shortly."
+                ) from e
+            time.sleep(2 ** attempt)  # 1s, 2s, 4s backoff
+
+    return (response.text or "").strip()
+
 def download_and_parse(pdf_url: str) -> str:
     # 1. Download the file
     response = requests.get(pdf_url)
@@ -30,7 +93,12 @@ def download_and_parse(pdf_url: str) -> str:
         ".pptx": _parse_pptx,
         ".ppt":  _parse_pptx,
         ".rtf":  _parse_rtf,
-        ".csv":  _parse_txt,   # csv is plain text
+        ".csv":  _parse_txt, 
+        ".png":  _parse_image,   # ← new
+        ".jpg":  _parse_image,   # ← new
+        ".jpeg": _parse_image,   # ← new
+        ".webp": _parse_image,   # ← new
+        ".heic": _parse_image,   # csv is plain text
     }
 
     parser = parsers.get(ext)
@@ -114,6 +182,8 @@ _PARSERS = {
     ".xlsx": _parse_xlsx, ".xls": _parse_xlsx,
     ".pptx": _parse_pptx, ".ppt": _parse_pptx,
     ".rtf": _parse_rtf, ".csv": _parse_txt,
+     ".png": _parse_image, ".jpg": _parse_image, ".jpeg": _parse_image,
+    ".webp": _parse_image, ".heic": _parse_image,
 }
 
 

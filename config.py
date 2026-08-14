@@ -17,3 +17,4 @@ CHUNK_SIZE        = 500   # characters per chunk
 CHUNK_OVERLAP     = 50
 TOPIC_AI_MODEL = os.getenv("COHERE_API_KEY")
 TOPIC_AI_MAX_CHARS = 10000
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
