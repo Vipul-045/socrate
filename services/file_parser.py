@@ -4,6 +4,9 @@
 import requests
 import tempfile
 import os
+import re
+from functools import lru_cache
+from urllib.parse import unquote, urlparse
 
 # add near the top with your other imports
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".heic"}
@@ -166,12 +169,45 @@ def _parse_rtf(path: str) -> str:
 
         # add these two functions, keep everything else (the parsers) unchanged
 
+# The app stores uploads in a private bucket, as
+# https://<bucket>.s3.<region>.amazonaws.com/<key> with the key unencoded.
+# An anonymous GET of one is refused (403), so they are read with this
+# service's AWS credentials instead.
+_S3_HOST = re.compile(r"^(?P<bucket>[a-z0-9][a-z0-9.-]*)\.s3(?:[.-](?P<region>[a-z0-9-]+))?\.amazonaws\.com$")
+
+
+def own_bucket_object(url: str) -> tuple[str, str, str | None] | None:
+    """(bucket, key, region) when `url` names an object in AWS_BUCKET_NAME."""
+    from config import AWS_BUCKET_NAME, AWS_REGION
+    parsed = urlparse(url)
+    match = _S3_HOST.match((parsed.hostname or "").lower())
+    if parsed.scheme != "https" or not match or not AWS_BUCKET_NAME or match["bucket"] != AWS_BUCKET_NAME:
+        return None
+    key = unquote(parsed.path.lstrip("/"))
+    return (match["bucket"], key, match["region"] or AWS_REGION) if key else None
+
+
+@lru_cache(maxsize=None)
+def _s3(region: str | None):
+    import boto3
+    return boto3.client("s3", region_name=region)
+
+
+def _download_bytes(url: str) -> bytes:
+    own = own_bucket_object(url)
+    if own is None:
+        response = requests.get(url)
+        response.raise_for_status()
+        return response.content
+    bucket, key, region = own
+    return _s3(region).get_object(Bucket=bucket, Key=key)["Body"].read()
+
+
 def download_file(pdf_url: str) -> tuple[str, str]:
-    response = requests.get(pdf_url)
-    response.raise_for_status()
+    content = _download_bytes(pdf_url)
     ext = os.path.splitext(pdf_url.split("?")[0])[-1].lower()
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as f:
-        f.write(response.content)
+        f.write(content)
         tmp_path = f.name
     return tmp_path, ext
 

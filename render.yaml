@@ -11,3 +11,12 @@ services:
         sync: false
       - key: COHERE_API_KEY
         sync: false
+      # Reading the app's private bucket (services/file_parser.download_file)
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        value: ap-southeast-2
+      - key: AWS_BUCKET_NAME
+        value: socrate-data

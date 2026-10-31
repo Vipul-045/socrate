@@ -18,3 +18,7 @@ CHUNK_OVERLAP     = 50
 TOPIC_AI_MODEL = os.getenv("COHERE_API_KEY")
 TOPIC_AI_MAX_CHARS = 10000
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# The app's private S3 bucket. Its objects are read with boto3, which takes
+# AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY from the environment itself.
+AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME")
+AWS_REGION = os.getenv("AWS_REGION")
