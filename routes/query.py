@@ -10,6 +10,7 @@ router = APIRouter()
 class SearchRequest(BaseModel):
     query: str
     pdf_url: str
+    top_k: int = 5   # how many chunks; a large quiz asks for more (at most 60)
 
 class StreamRequest(BaseModel):
     query: str
@@ -56,7 +57,7 @@ def context(req: ContextRequest):
 def search(req: SearchRequest):
     try:
         query_vector   = embed_single(req.query)
-        context_chunks = search_similar(query_vector, req.pdf_url)
+        context_chunks = search_similar(query_vector, req.pdf_url, top_k=max(1, min(req.top_k, 60)))
         return { "chunks": context_chunks }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

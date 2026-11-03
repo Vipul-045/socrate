@@ -137,7 +137,14 @@ def search_similar(query_vector: list[float], file_url: str, top_k: int = 5) -> 
             ]
         }
     ).points
-    return [hit.payload["text"] for hit in results]
+    # Documents stored before ingest ran once hold each chunk up to three
+    # times: the same text is returned once.
+    seen, texts = set(), []
+    for hit in results:
+        if hit.payload["text"] not in seen:
+            seen.add(hit.payload["text"])
+            texts.append(hit.payload["text"])
+    return texts
 
 
 def store_chunks(
