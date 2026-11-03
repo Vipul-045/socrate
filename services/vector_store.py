@@ -187,3 +187,65 @@ def store_chunks(
             collection_name=QDRANT_COLLECTION,
             points=batch,
         )
+
+def _even_sample(items: list, budget_chars: int) -> list:
+    """Items (in document order) spread evenly across the whole list, until
+    their text fills `budget_chars`: a range larger than its budget is
+    covered from start to end, not cut off after its first pages."""
+    total = sum(len(i["text"]) for i in items)
+    if total <= budget_chars:
+        return items
+    keep = max(1, int(len(items) * budget_chars / total))
+    step = len(items) / keep
+    return [items[int(k * step)] for k in range(keep)]
+
+
+def chunks_for_ranges(pdf_url: str, ranges: list[tuple[int, int]] | None, budget_chars: int) -> dict:
+    """The document's chunks within the given character ranges (each topic's
+    range), or the whole document when `ranges` is empty, sampled evenly to
+    fit `budget_chars` overall. The budget is split across ranges in
+    proportion to their size. Each chunk appears once, in document order.
+
+    Returns {"chunks": [{text, char_start, chunk_index, range}],
+             "ranges": [{"available_chars", "returned_chars"}],
+             "located": bool}. located is False for a document stored before
+    chunk offsets were kept: ranges can't be applied to it, and the caller
+    falls back to search."""
+    ensure_collection()
+    points, offset = [], None
+    while True:
+        batch, offset = client.scroll(collection_name=QDRANT_COLLECTION, scroll_filter=_url_filter(pdf_url),
+                                      limit=256, offset=offset, with_payload=True, with_vectors=False)
+        points.extend(batch)
+        if offset is None:
+            break
+    seen, chunks = set(), []
+    for p in sorted(points, key=lambda p: p.payload.get("chunk_index", 0)):
+        idx = p.payload.get("chunk_index")
+        if idx in seen:
+            continue
+        seen.add(idx)
+        chunks.append({"text": p.payload["text"], "char_start": p.payload.get("char_start"), "chunk_index": idx})
+    located = bool(chunks) and all(c["char_start"] is not None for c in chunks)
+    if not ranges or not located:
+        picked = _even_sample(chunks, budget_chars)
+        return {"chunks": [{**c, "range": None} for c in picked],
+                "ranges": [], "located": located or not ranges}
+
+    groups = []
+    for start, end in ranges:
+        groups.append([c for c in chunks if start <= c["char_start"] < end])
+    sizes = [sum(len(c["text"]) for c in g) for g in groups]
+    total = sum(sizes) or 1
+    picked, report = [], []
+    for i, g in enumerate(groups):
+        share = int(budget_chars * sizes[i] / total)
+        chosen = _even_sample(g, max(share, 1)) if g else []
+        picked.extend({**c, "range": i} for c in chosen)
+        report.append({"available_chars": sizes[i], "returned_chars": sum(len(c["text"]) for c in chosen)})
+    unique, seen = [], set()
+    for c in sorted(picked, key=lambda c: c["char_start"]):
+        if c["chunk_index"] not in seen:
+            seen.add(c["chunk_index"])
+            unique.append(c)
+    return {"chunks": unique, "ranges": report, "located": True}
