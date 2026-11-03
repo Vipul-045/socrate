@@ -35,11 +35,25 @@ def get_all_chunks(pdf_url: str) -> list[str]:
         if offset is None:
             break
 
-    # sort by chunk_index so the summary reads in original document order
+    # sort by chunk_index so the summary reads in original document order.
+    # Documents uploaded before ingest ran once were stored up to three times:
+    # each chunk is returned once.
     all_chunks.sort(key=lambda p: p.payload["chunk_index"])
-    return [p.payload["text"] for p in all_chunks]
+    seen, unique = set(), []
+    for p in all_chunks:
+        if p.payload["chunk_index"] in seen:
+            continue
+        seen.add(p.payload["chunk_index"])
+        unique.append(p.payload["text"])
+    return unique
+
+_ensured = False
+
 
 def ensure_collection():
+    global _ensured
+    if _ensured:
+        return
     existing = [c.name for c in client.get_collections().collections]
     if QDRANT_COLLECTION not in existing:
         client.create_collection(
@@ -67,6 +81,47 @@ def ensure_collection():
             field_name="topic",
             field_schema=PayloadSchemaType.KEYWORD
         )
+    # Added after the collection first existed: created here for an existing
+    # collection too (creating an index that exists is a no-op).
+    for field, schema in (("content_hash", PayloadSchemaType.KEYWORD),
+                          ("char_start", PayloadSchemaType.INTEGER),
+                          ("chunk_index", PayloadSchemaType.INTEGER)):
+        client.create_payload_index(collection_name=QDRANT_COLLECTION, field_name=field, field_schema=schema)
+    _ensured = True
+
+
+def _url_filter(pdf_url: str) -> Filter:
+    return Filter(must=[FieldCondition(key="pdf_url", match=MatchValue(value=pdf_url))])
+
+
+def count_points(pdf_url: str) -> int:
+    """How many chunks are stored for this file (0 if none, or no collection yet)."""
+    ensure_collection()
+    return client.count(collection_name=QDRANT_COLLECTION, count_filter=_url_filter(pdf_url), exact=True).count
+
+
+def copy_points_for_hash(content_hash: str, pdf_url: str) -> int:
+    """Stores, under `pdf_url`, the chunks of an earlier upload of the same
+    bytes (same SHA-256): its vectors are reused, nothing is embedded. Returns
+    how many were copied (0 if no earlier upload is indexed)."""
+    ensure_collection()
+    hash_filter = Filter(must=[FieldCondition(key="content_hash", match=MatchValue(value=content_hash))])
+    first, _ = client.scroll(collection_name=QDRANT_COLLECTION, scroll_filter=hash_filter, limit=1, with_payload=True)
+    if not first:
+        return 0
+    source = first[0].payload["pdf_url"]
+    copied, offset = 0, None
+    while True:
+        points, offset = client.scroll(collection_name=QDRANT_COLLECTION, scroll_filter=_url_filter(source),
+                                       limit=256, offset=offset, with_payload=True, with_vectors=True)
+        if points:
+            client.upsert(collection_name=QDRANT_COLLECTION, points=[
+                PointStruct(id=str(uuid.uuid4()), vector=p.vector, payload={**p.payload, "pdf_url": pdf_url})
+                for p in points
+            ])
+            copied += len(points)
+        if offset is None:
+            return copied
 
 def search_similar(query_vector: list[float], file_url: str, top_k: int = 5) -> list[str]:
     results = client.query_points(
@@ -91,6 +146,8 @@ def store_chunks(
     pdf_url: str,
     topics: list[str | None] | None = None,
     metadata: dict | None = None,          # ← new
+    offsets: list[int] | None = None,      # each chunk's start in the parsed text
+    content_hash: str | None = None,       # SHA-256 of the file, for re-uploads
 ):
     ensure_collection()
 
@@ -105,6 +162,12 @@ def store_chunks(
 
         if topics and i < len(topics) and topics[i]:
             payload["topic"] = topics[i]
+
+        if offsets and i < len(offsets):
+            payload["char_start"] = offsets[i]
+
+        if content_hash:
+            payload["content_hash"] = content_hash
 
         if metadata:                        # ← new — e.g. {"file_type": "image", "page": 1}
             payload.update(metadata)
