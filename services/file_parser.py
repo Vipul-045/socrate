@@ -177,9 +177,18 @@ _S3_HOST = re.compile(r"^(?P<bucket>[a-z0-9][a-z0-9.-]*)\.s3(?:[.-](?P<region>[a
 
 
 def own_bucket_object(url: str) -> tuple[str, str, str | None] | None:
-    """(bucket, key, region) when `url` names an object in AWS_BUCKET_NAME."""
-    from config import AWS_BUCKET_NAME, AWS_REGION
+    """(bucket, key, region) when `url` names an object in AWS_BUCKET_NAME.
+
+    With S3_ENDPOINT set (development: MinIO), stored files are
+    <S3_ENDPOINT>/<bucket>/<key> instead, and only those are the bucket's."""
+    from config import AWS_BUCKET_NAME, AWS_REGION, S3_ENDPOINT
     parsed = urlparse(url)
+    if S3_ENDPOINT:
+        base = urlparse(S3_ENDPOINT.rstrip("/") + f"/{AWS_BUCKET_NAME}/")
+        if not AWS_BUCKET_NAME or (parsed.scheme, parsed.netloc) != (base.scheme, base.netloc) or not parsed.path.startswith(base.path):
+            return None
+        key = unquote(parsed.path[len(base.path):])
+        return (AWS_BUCKET_NAME, key, AWS_REGION) if key else None
     match = _S3_HOST.match((parsed.hostname or "").lower())
     if parsed.scheme != "https" or not match or not AWS_BUCKET_NAME or match["bucket"] != AWS_BUCKET_NAME:
         return None
@@ -190,11 +199,15 @@ def own_bucket_object(url: str) -> tuple[str, str, str | None] | None:
 @lru_cache(maxsize=None)
 def _s3(region: str | None):
     import boto3
-    return boto3.client("s3", region_name=region)
+    from config import S3_ENDPOINT
+    return boto3.client("s3", region_name=region, endpoint_url=S3_ENDPOINT or None)
 
 
 def _download_bytes(url: str) -> bytes:
+    from config import IS_DEVELOPMENT
     own = own_bucket_object(url)
+    if own is None and IS_DEVELOPMENT and _S3_HOST.match((urlparse(url).hostname or "").lower()):
+        raise ValueError("Development reads stored files from the local S3 endpoint only, never AWS.")
     if own is None:
         response = requests.get(url)
         response.raise_for_status()

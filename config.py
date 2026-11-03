@@ -44,3 +44,8 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY from the environment itself.
 AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME")
 AWS_REGION = os.getenv("AWS_REGION")
+# Set in development (MinIO, the backend's docker-compose.dev.yml): the bucket
+# is read there, path-style, and nowhere else.
+S3_ENDPOINT = os.getenv("S3_ENDPOINT")
+if IS_DEVELOPMENT and not (S3_ENDPOINT and is_local_url(S3_ENDPOINT)):
+    raise RuntimeError(f"Refusing to start in development: S3_ENDPOINT is {S3_ENDPOINT or 'not set'}, so stored files would be read from AWS. Set it to the local MinIO in .env.development.")
