@@ -9,6 +9,9 @@ services:
         sync: false
       - key: QDRANT_API_KEY
         sync: false
+      # Production's collection, named so a new default can never move it.
+      - key: QDRANT_COLLECTION
+        value: socrate_docs
       - key: COHERE_API_KEY
         sync: false
       # Reading the app's private bucket (services/file_parser.download_file)
