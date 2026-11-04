@@ -79,7 +79,22 @@ def ingest(url: str) -> dict:
     with _one_at_a_time(url):
         tmp_path, ext = download_file(url)
         content_hash = _sha256(tmp_path)
-        text = parse_file(tmp_path, ext)
+        # A file that can't be opened says why (a 415 with this message), rather
+        # than failing as if the service were down.
+        if ext == ".pdf":
+            import fitz
+            try:
+                pdf = fitz.open(tmp_path)
+            except Exception:
+                raise ValueError("This file couldn't be opened — it may be damaged, or not really a PDF.")
+            if pdf.needs_pass:
+                raise ValueError("This PDF is password-protected. Remove the password, then upload it again.")
+        try:
+            text = parse_file(tmp_path, ext)
+        except ValueError:
+            raise
+        except Exception:
+            raise ValueError("This file couldn't be read — it may be damaged.")
         # A scan: its pages are read with text recognition (services/ocr.py),
         # once — a scan already indexed, or the same bytes uploaded again, has
         # its text rebuilt from the stored chunks instead.

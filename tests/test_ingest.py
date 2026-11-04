@@ -23,7 +23,14 @@ def env(monkeypatch, tmp_path):
 
     def fake_download(url):
         path = tmp_path / url.rsplit("/", 1)[-1]
-        shutil.copy(FIXTURE if not url.endswith("blank.pdf") else BLANK, path)
+        if url.endswith("corrupt.pdf"):
+            path.write_bytes(b"%PDF-1.7\n this is not a real PDF \x00\x01")
+        elif url.endswith("locked.pdf"):
+            import pymupdf
+            d = pymupdf.open(FIXTURE)
+            d.save(str(path), encryption=pymupdf.PDF_ENCRYPT_AES_256, user_pw="secret", owner_pw="secret")
+        else:
+            shutil.copy(FIXTURE if not url.endswith("blank.pdf") else BLANK, path)
         return str(path), ".pdf"
 
     def fake_ocr(path):
@@ -106,3 +113,11 @@ def test_older_documents_stored_three_times_read_back_once(env):
     for _ in range(3):
         vector_store.store_chunks(["a", "b"], [[1.0] + [0.0] * 1023] * 2, "http://s3.local/b/old.pdf")
     assert vector_store.get_all_chunks("http://s3.local/b/old.pdf") == ["a", "b"]
+
+
+def test_a_damaged_or_password_protected_pdf_says_why(env):
+    with pytest.raises(ValueError, match="damaged"):
+        ingest_mod.ingest("http://s3.local/b/u1/corrupt.pdf")
+    with pytest.raises(ValueError, match="password-protected"):
+        ingest_mod.ingest("http://s3.local/b/u1/locked.pdf")
+    assert env["embed"] == 0 and env.get("ocr", 0) == 0
