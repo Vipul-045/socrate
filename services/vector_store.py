@@ -256,3 +256,30 @@ def chunks_for_ranges(pdf_url: str, ranges: list[tuple[int, int]] | None, budget
             seen.add(c["chunk_index"])
             unique.append(c)
     return {"chunks": unique, "ranges": report, "located": True}
+
+
+def stored_text(pdf_url: str | None = None, content_hash: str | None = None) -> str:
+    """The document's text rebuilt from its stored chunks, each at its offset
+    (overlaps merged) — for a scanned PDF already read once, so it isn't read
+    again. By URL, or by the file's hash for another upload of the same bytes.
+    "" when nothing with offsets is stored."""
+    ensure_collection()
+    if not pdf_url and content_hash:
+        hash_filter = Filter(must=[FieldCondition(key="content_hash", match=MatchValue(value=content_hash))])
+        first, _ = client.scroll(collection_name=QDRANT_COLLECTION, scroll_filter=hash_filter, limit=1, with_payload=True)
+        if not first:
+            return ""
+        pdf_url = first[0].payload["pdf_url"]
+    if not pdf_url:
+        return ""
+    chunks = chunks_for_ranges(pdf_url, None, budget_chars=10**9)["chunks"]
+    if not chunks or any(c["char_start"] is None for c in chunks):
+        return ""
+    text = ""
+    for c in sorted(chunks, key=lambda c: c["char_start"]):
+        start = c["char_start"]
+        if start >= len(text):
+            text += " " * (start - len(text)) + c["text"]
+        elif start + len(c["text"]) > len(text):
+            text += c["text"][len(text) - start:]
+    return text

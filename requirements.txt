@@ -11,3 +11,4 @@ openpyxl
 python-pptx
 striprtf
 boto3
+google-genai

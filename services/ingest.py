@@ -15,6 +15,8 @@ from services.chunker import chunk_text_with_offsets
 from services.topic_extractor import extract_topics, assign_topics_to_chunks
 from services.embedder import embed_texts
 from services import vector_store
+from services.ocr import needs_ocr, ocr_pdf
+import traceback
 
 # Below this, a document is "very little text": still indexed, but the app
 # says so instead of promising a full quiz from it.
@@ -78,14 +80,33 @@ def ingest(url: str) -> dict:
         tmp_path, ext = download_file(url)
         content_hash = _sha256(tmp_path)
         text = parse_file(tmp_path, ext)
+        # A scan: its pages are read with text recognition (services/ocr.py),
+        # once — a scan already indexed, or the same bytes uploaded again, has
+        # its text rebuilt from the stored chunks instead.
+        ocr = None
+        topics_ext = ext
+        if ext == ".pdf" and needs_ocr(tmp_path, text):
+            topics_ext = ".md"  # the recognised text is Markdown, headings and all
+            known = vector_store.stored_text(pdf_url=url) or vector_store.stored_text(content_hash=content_hash)
+            if known:
+                text, ocr = known, {"reused": True}
+            else:
+                try:
+                    read = ocr_pdf(tmp_path)
+                    text = read["text"]
+                    ocr = {"pages_read": read["pages_read"], "pages_total": read["pages_total"]}
+                except Exception:
+                    traceback.print_exc()
+                    ocr = {"failed": True}
         status = text_status(text)
-        topics = extract_topics(tmp_path, ext, text) if status != "no_text" else []
+        topics = extract_topics(tmp_path, topics_ext, text) if status != "no_text" else []
         result = {
             "status": "ok",
             "text_status": status,
             "content_hash": content_hash,
             "chars": len(text),
             "topics": _topic_dicts(topics, len(text)),
+            "ocr": ocr,
         }
         if status == "no_text":
             result["chunks_stored"] = 0
