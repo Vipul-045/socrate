@@ -9,10 +9,17 @@ services:
         sync: false
       - key: QDRANT_API_KEY
         sync: false
-      # Production's collection, named so a new default can never move it.
+      # Production's collection. Required: the service refuses to start
+      # without it, or with a *_dev one (config.py).
       - key: QDRANT_COLLECTION
         value: socrate_docs
       - key: COHERE_API_KEY
+        sync: false
+      # Chat answers (services/llm.py); the client is built at start-up.
+      - key: GROQ_API_KEY
+        sync: false
+      # Image uploads and scanned PDFs (text recognition).
+      - key: GEMINI_API_KEY
         sync: false
       # Reading the app's private bucket (services/file_parser.download_file)
       - key: AWS_ACCESS_KEY_ID
@@ -23,3 +30,5 @@ services:
         value: ap-southeast-2
       - key: AWS_BUCKET_NAME
         value: socrate-data
+      # Never set here: SOCRATE_ENV (development only) and S3_ENDPOINT (MinIO,
+      # development only — production reads AWS S3).

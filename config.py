@@ -28,9 +28,17 @@ COHERE_API_KEY    = os.getenv("COHERE_API_KEY")
 QDRANT_URL     = os.getenv("QDRANT_URL", "http://localhost:6333")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-# Unset, the collection is socrate_docs_dev on a local Qdrant and socrate_docs
-# (production's) on any other, so a deploy that never set it keeps its data.
-QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION") or ("socrate_docs_dev" if is_local_url(QDRANT_URL) else "socrate_docs")
+# Development defaults to socrate_docs_dev. Anywhere else the collection is
+# named outright — production's is socrate_docs — and a development one is
+# refused: a guess could point the service at an empty collection, and every
+# document would look unindexed.
+QDRANT_COLLECTION = (os.getenv("QDRANT_COLLECTION") or "").strip()
+if IS_DEVELOPMENT:
+    QDRANT_COLLECTION = QDRANT_COLLECTION or "socrate_docs_dev"
+elif not QDRANT_COLLECTION:
+    raise RuntimeError("Refusing to start: QDRANT_COLLECTION is not set. Production's is socrate_docs; set it in the host's environment.")
+elif QDRANT_COLLECTION.endswith("_dev"):
+    raise RuntimeError(f"Refusing to start: QDRANT_COLLECTION is {QDRANT_COLLECTION}, a development collection. Production's is socrate_docs.")
 if IS_DEVELOPMENT and not is_local_url(QDRANT_URL):
     raise RuntimeError(f"Refusing to start in development: QDRANT_URL is {QDRANT_URL}, not this machine. Fix it in .env.development.")
 EMBEDDING_MODEL = "embed-english-v3.0"
