@@ -8,9 +8,6 @@ from collections import Counter
 
 from config import COHERE_API_KEY
 
-# --- ADD THESE TO config.py ---
-# TOPIC_AI_MODEL = "command-r-plus"
-# TOPIC_AI_MAX_CHARS = 12000
 from config import TOPIC_AI_MODEL, TOPIC_AI_MAX_CHARS
 
 
@@ -541,9 +538,13 @@ def _extract_topics_text(text: str) -> list[Topic]:
 # ────────────────────────── AI fallback ──────────────────────────
 
 def _extract_topics_ai(text: str) -> list[Topic]:
-    """Only reached when no deterministic structure was found."""
+    """Only reached when no deterministic structure was found. Without
+    TOPIC_AI_MODEL (config.py) the whole document is one topic and Cohere
+    isn't called."""
     if not text.strip():
         return []
+    if not TOPIC_AI_MODEL:
+        return [Topic(id=str(uuid.uuid4()), title="Document", level=1, char_start=0, char_end=len(text))]
 
     sample = text[:TOPIC_AI_MAX_CHARS]
     prompt = (

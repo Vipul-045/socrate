@@ -45,7 +45,13 @@ EMBEDDING_MODEL = "embed-english-v3.0"
 LLM_MODEL = "llama-3.3-70b-versatile" 
 CHUNK_SIZE        = 500   # characters per chunk
 CHUNK_OVERLAP     = 50
-TOPIC_AI_MODEL = os.getenv("COHERE_API_KEY")
+# The Cohere chat model that finds topics in a document with no headings
+# (services/topic_extractor._extract_topics_ai). Off unless named: unset, such
+# a document is one topic, "Document", and nothing is called or spent.
+# command-r7b-12-2024 is the cheapest that reads them well.
+TOPIC_AI_MODEL = (os.getenv("TOPIC_AI_MODEL") or "").strip() or None
+if TOPIC_AI_MODEL and TOPIC_AI_MODEL == COHERE_API_KEY:
+    raise RuntimeError("Refusing to start: TOPIC_AI_MODEL is set to the Cohere API key. Set it to a model name, e.g. command-r7b-12-2024.")
 TOPIC_AI_MAX_CHARS = 10000
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # The app's private S3 bucket. Its objects are read with boto3, which takes

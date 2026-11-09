@@ -52,3 +52,18 @@ def test_development_defaults_to_its_own_collection(tmp_path):
     run = start(tmp_path, SOCRATE_ENV="development", QDRANT_URL="http://localhost:6333", S3_ENDPOINT="http://localhost:9000")
     assert run.returncode == 0, run.stderr
     assert run.stdout.strip() == "socrate_docs_dev"
+
+
+def test_the_api_key_as_the_topic_model_refuses_to_start(tmp_path):
+    run = start(tmp_path, **PRODUCTION, QDRANT_COLLECTION="socrate_docs", COHERE_API_KEY="k-123", TOPIC_AI_MODEL="k-123")
+    assert run.returncode != 0
+    assert "TOPIC_AI_MODEL is set to the Cohere API key" in run.stderr
+
+
+def test_the_topic_model_is_off_unless_named(tmp_path):
+    shutil.copy(CONFIG, tmp_path / "config.py")
+    base = {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "SYSTEMROOT")}
+    run = subprocess.run([sys.executable, "-c", "import config; print(config.TOPIC_AI_MODEL)"], cwd=tmp_path,
+                         env={**base, **PRODUCTION, "QDRANT_COLLECTION": "socrate_docs", "COHERE_API_KEY": "k-123"}, capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0, run.stderr
+    assert run.stdout.strip() == "None"
