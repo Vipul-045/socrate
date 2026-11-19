@@ -1,0 +1,63 @@
+# Every PR and every push to main: the install Render runs, the tests, and a
+# start with production settings (dummy secrets). Branch protection on main
+# requires this job.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rag:
+    name: RAG · lint + tests + start
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+      - name: Install (as Render)
+        run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Lint (syntax errors and undefined names only)
+        run: pipx run ruff==0.14.5 check --select E9,F63,F7,F82 --target-version py313 .
+      - name: Tests
+        run: python -m pytest -q
+      - name: Start with production settings and answer
+        env:
+          QDRANT_URL: http://127.0.0.1:9
+          QDRANT_API_KEY: ci
+          QDRANT_COLLECTION: socrate_docs
+          COHERE_API_KEY: ci
+          GROQ_API_KEY: ci
+          GEMINI_API_KEY: ci
+          AWS_ACCESS_KEY_ID: ci
+          AWS_SECRET_ACCESS_KEY: ci
+          AWS_REGION: ap-southeast-2
+          AWS_BUCKET_NAME: ci
+        run: |
+          uvicorn main:app --host 127.0.0.1 --port 10000 > uvicorn.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:10000/openapi.json > /dev/null; then
+              # /health needs Qdrant (503 here); it must still answer.
+              code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:10000/health)
+              echo "/health -> $code"
+              [ "$code" = 200 ] || [ "$code" = 503 ] || [ "$code" = 404 ] && exit 0
+              exit 1
+            fi
+            sleep 1
+          done
+          cat uvicorn.log
+          exit 1
